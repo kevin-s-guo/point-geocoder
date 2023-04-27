@@ -1,7 +1,6 @@
 version: "3.9"
 services:
   web:
-    build: web/
     image: ksgi/geocoder-platform-web:latest
     volumes:
       - ./app:/code/app
@@ -11,7 +10,6 @@ services:
       - "db"
     container_name: geocoder-platform-web
   db:
-    build: db/
     image: ksgi/geocoder-platform-db:latest
     volumes:
       - gisdata:/var/lib/postgresql/data
