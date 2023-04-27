@@ -1,0 +1,32 @@
+<div x-data="{search: '',
+               items: {{ sdoh_list_str }},
+
+               get filteredItems() {
+                  return this.items.filter(i => (i[0] + ' ' + i[1]).toLowerCase().includes(this.search.toLowerCase()))}}">
+    <input class="form-control" id='search{{n}}' placeholder="Search variables..."><br>
+    <div class='scrollwide' id="sdoh_checkboxes">
+        {% for name, desc in sdoh_list %}
+        <label class="form-check-label" for="{{ name }}{{ n }}" style="display:block;"><input class="form-check-input"
+                                                                                              id="{{ name }}{{ n }}"
+                                                                                              name="sdoh"
+                                                                                              search_value="{{name}} {{desc}}"
+                                                                                              type="checkbox"
+                                                                                              value="{{ name }}">
+            {{ name }}: {{ desc }}<br></label>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+    search = document.getElementById("search{{n}}");
+    labels = document.querySelectorAll("#sdoh_checkboxes > label");
+
+    search.addEventListener("input",
+        () => Array.from(labels).forEach((element) => {
+            if (element.childNodes[0].getAttribute("search_value").toLowerCase().includes(search.value.toLowerCase())) {
+                element.style.display = "block";
+            } else {
+                element.style.display = "none";
+            }
+        }))
+</script>

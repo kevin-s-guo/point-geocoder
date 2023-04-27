@@ -1,0 +1,52 @@
+<div class="modal" data-bs-backdrop="static" data-bs-keyboard="false" id="submit_job" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" x-data="{
+                fn: '',
+                addr_col: '',
+                id_col: '',
+                city_col: '',
+                state_col: '',
+                zip_col: '',
+                addr_comp: false
+                }">
+            <div class="modal-header">
+                <h5 class="modal-title">Batch Geocode Address</h5>
+                <button aria-label="Close" class="btn-close" data-bs-dismiss="modal" type="button"></button>
+            </div>
+            <div class="modal-body">
+                <p>Upload a CSV file with an address column for batch geocoding.</p>
+                <form action="javascript:void(0);" name="batch" onkeydown="return event.key != 'Enter';">
+                    <label class="form-label" for="batchfile">Data file (csv format)</label>
+                    <div class="row">
+                        <div class="col-auto"><input class="form-control" id="batchfile" name="batchfile" required="required"
+                                                     type="file" x-model="fn"></div>
+                        <div class="col-3">
+                            <div class="input-group">
+                                <span class="input-group-text">Delimiter</span>
+                                <input class="form-control" id="delim" name="delim" placeholder="," required="required"
+                                       type="text" value=",">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <button :disabled="!(fn.length)" class="btn btn-outline-dark" hx-encoding='multipart/form-data'
+                                    hx-include="[name='batchfile'], [name='delim']" hx-post="/upload"
+                                    hx-swap="innerHTML" hx-target='#columns'>Upload
+                            </button>
+                        </div>
+                    </div>
+                    <br>
+                    <div id="columns">
+
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Close</button>
+                <button :disabled='!(addr_col.length)' class="btn btn-primary" data-bs-dismiss="modal"
+                        hx-encoding='multipart/form-data' hx-include="[name='batch']" hx-post="/submit_job"
+                        hx-swap="innerHTML" hx-target="#confirm_submit" type="button">Submit
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

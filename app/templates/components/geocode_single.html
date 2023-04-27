@@ -1,0 +1,47 @@
+<div class="modal" data-bs-backdrop="static" data-bs-keyboard="false" id="geocode_single" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" x-data="{
+                content_full: '',
+                content_seg: ''
+                }">
+            <div class="modal-header">
+                <h5 class="modal-title">Geocode Address</h5>
+                <button aria-label="Close" class="btn-close" data-bs-dismiss="modal" type="button"></button>
+            </div>
+            <div class="modal-body">
+                <p>Get a census tract FIPS code for a full or segmented text address.</p>
+                <form name="geocode_single_form">
+                    <label class="col-form-label" for='addr'>Address (full):</label>
+                    <textarea class="form-control" id="addr" name="addr" x-model="content_full"></textarea><br>
+                    <hr>
+                    <label class="col-form-label" for="addr1">Address Line 1:</label>
+                    <input class="form-control" id="addr1" name="addr1" type="text" x-model="content_seg">
+                    <label class="col-form-label" for="addr2">Address Line 2:</label>
+                    <input class="form-control" id="addr2" name="addr2" type="text">
+                    <div class="row">
+                        <div class="col-7">
+                            <label class="col-form-label" for="city">City:</label>
+                            <input class="form-control" id="city" name="city" type="text">
+                        </div>
+                        <div class="col">
+                            <label class="col-form-label" for="state">State:</label>
+                            <input class="form-control" id="state" name="state" type="text">
+                        </div>
+                        <div class="col">
+                            <label class="col-form-label" for="zip">Zip code:</label>
+                            <input class="form-control" id="zip" name="zip" type="text">
+                        </div>
+                    </div>
+                </form>
+                <div class="smooth" id="res"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Close</button>
+                <button :disabled="!(content_full.length || content_seg.length)" class="btn btn-primary" hx-get="/geocode" hx-include="[name='geocode_single_form']"
+                        hx-swap="innerHTML"
+                        hx-target="#res" type="button">Geocode
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

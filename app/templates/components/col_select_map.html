@@ -1,0 +1,77 @@
+<hr>
+
+<div class="input-group">
+    <span class="input-group-text">Granularity</span>
+    <input class="btn-check" id="granularity_longlat" name="granularity" type="radio" value="longlat"
+           x-model="granularity">
+    <label class="btn btn-outline-primary" for="granularity_longlat">Coordinates</label>
+    <input class="btn-check" id="granularity_countyfips" name="granularity" type="radio" value="county"
+           x-model="granularity">
+    <label class="btn btn-outline-primary" for="granularity_countyfips">County FIPS</label>
+    <input class="btn-check" id="granularity_tractfips" name="granularity" type="radio" value="tract"
+           x-model="granularity">
+    <label class="btn btn-outline-primary" for="granularity_tractfips">Tract FIPS</label>
+    <input class="btn-check" id="granularity_bgfips" name="granularity" type="radio" value="bg" x-model="granularity">
+    <label class="btn btn-outline-primary" for="granularity_bgfips">Blockgroup FIPS</label>
+</div>
+<br>
+<div class="input-group" x-show="granularity === 'tract' | granularity === 'county' | granularity === 'bg'">
+    <span class="input-group-text">Census year</span>
+    <input class="btn-check" id="year_2020" name="census_year" type="radio" value="2020">
+    <label class="btn btn-outline-primary" for="year_2020">2020</label>
+    <input class="btn-check" id="year_2010" name="census_year" type="radio" value="2010">
+    <label class="btn btn-outline-primary" for="year_2010">2010</label>
+</div>
+<div class="input-group" x-show="granularity === 'tract' | granularity === 'county' | granularity === 'bg'">
+    <span class="input-group-text">FIPS</span>
+    {% for col in df.columns %}
+    <input class="btn-check" id="{{ col }}_fips" name="fips_col" required="required" type="radio" value="{{ col }}"
+           x-model="fips_col">
+    <label class="btn btn-outline-secondary" for="{{ col }}_fips">{{ col }}</label>
+    {% endfor %}
+</div>
+<div class="input-group" x-show="granularity === 'longlat'">
+    <span class="input-group-text">Longitude</span>
+    {% for col in df.columns %}
+    <input class="btn-check" id="{{ col }}_long" name="long_col" required="required" type="radio" value="{{ col }}"
+           x-model="long_col">
+    <label class="btn btn-outline-secondary" for="{{ col }}_long">{{ col }}</label>
+    {% endfor %}
+</div>
+<div class="input-group" x-show="granularity === 'longlat'">
+    <span class="input-group-text">Latitude</span>
+    {% for col in df.columns %}
+    <input class="btn-check" id="{{ col }}_lat" name="lat_col" required="required" type="radio" value="{{ col }}"
+           x-model="lat_col">
+    <label class="btn btn-outline-secondary" for="{{ col }}_lat">{{ col }}</label>
+    {% endfor %}
+</div>
+<br>
+<div class="accordion" id="accordionExample">
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="headingOne">
+            <button aria-controls="collapseOne" aria-expanded="true" class="accordion-button collapsed"
+                    data-bs-target="#collapseOne" data-bs-toggle="collapse" type="button">
+                Preview data table (first 10 rows)
+            </button>
+        </h2>
+        <div aria-labelledby="headingOne" class="accordion-collapse collapse " data-bs-parent="#accordionExample"
+             id="collapseOne">
+            <div class="accordion-body">
+                {{ df.head(10).to_html(classes="table") | safe }}
+            </div>
+        </div>
+    </div>
+</div>
+<br>
+<label for='sdoh'>Choose social determinants of health to include</label><br>
+
+{% with n='1' %}
+{% include 'components/sdoh_checkboxes.html' %}
+{% endwith %}
+<br>
+<button :disabled='(!(fips_col.length) && granularity != "longlat")  || (!(long_col.length && lat_col.length) && granularity == "longlat")'
+        class="btn btn-primary"
+        hx-encoding='multipart/form-data' hx-include="[name='map_var']" hx-post="/web/map_variables/" hx-swap="innerHTML"
+        hx-target="#page_body" type="button">Submit
+</button>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% block head %}
+    <meta charset="UTF-8">
+    <title>Geocoder</title>
+    {% endblock %}
+    <style>
+        .scroll {
+            overflow-x: scroll;
+        }
+
+        .scrollwide {
+            border: 2px solid #ccc;
+            height: 200px;
+            overflow-y: scroll;
+            padding: 5px 10px 10px;
+        }
+    </style>
+    <link crossorigin="anonymous" href="/assets/bootstrap.min.css"
+          integrity="sha384-Zenh87qX5JnK2Jl0vWa8Ck2rdkQ2Bzep5IDxbcnCeuOxjzrPF/et3URy9Bv1WTRi" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.14.0.min.js"></script>
+    <script defer src="/assets/alpinejs.min.js"></script>
+    <script src="/assets/htmx-1.8.2.js"></script>
+    <script src="/assets/bootstrap.min.js"></script>
+</head>
+<body>
+
+<nav class="navbar bg-light navbar-expand-lg navbar-static-top">
+    <div class="container-fluid">
+        <div class="navbar-nav">
+            <a class="nav-link active" href="/web/">Home</a>
+            <a class="nav-link" data-bs-target="#geocode_single" data-bs-toggle="modal" href="#">Geocode Single
+                Address</a>
+            <a class="nav-link" data-bs-target="#submit_job" data-bs-toggle="modal" href="#">Batch Geocode</a>
+            <a class="nav-link" href="/web/map_variables/">Map Variables</a>
+            <a class="nav-link" href="/web/var_list/">Variable List</a>
+        </div>
+        <form action="/web/jobs" class="d-flex ms-auto" method="post">
+            <div class="input-group">
+                <input class="form-control" id="job_id" name="job_id" placeholder="Job ID" required='required'
+                       size="5" type="text">
+                <input class="form-control" id="pwd" name="pwd" placeholder="Password" type="password">
+                <button class="btn btn-outline-success" type="submit">View Results</button>
+            </div>
+        </form>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="row justify-content-md-center">
+        <div class="col col-sm-3">
+        </div>
+        <div class="col-xxl-10">
+            <br>
+            {% block content %}
+            {% endblock %}
+        </div>
+        <div class="col col-sm-3">
+        </div>
+    </div>
+</div>
+{% include 'components/geocode_single.html' %}
+{% include 'components/submit_job.html' %}
+
+<div id="confirm_submit">
+
+</div>
+<div align="center">
+    Notice: Any completed jobs will be deleted approximately 72 hours after completion and all jobs will be deleted after 1 month.
+</div>
+</body>
+</html>

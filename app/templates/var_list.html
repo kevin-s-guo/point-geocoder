@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="accordion" id="accordionPanels">
+    {% for db in sources.index %}
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="panels-{{db}}">
+            <button class="accordion-button collapsed" data-bs-target="#{{db}}-collapse" data-bs-toggle="collapse"
+                    type="button">
+                <strong>{{sources.loc[db, "description"]}}</strong>: {{sources.loc[db, "version"]}} release,
+                {{sources.loc[db, "census_year"]}} Census {{sources.loc[db, "granularity"]}}
+            </button>
+        </h2>
+        <div class="accordion-collapse collapse" id="{{db}}-collapse">
+            <div class="accordion-body">
+                Web URL: <a href="{{sources.loc[db, 'url']}}">{{sources.loc[db, 'url']}}</a><br><br>
+                <ul class="list-group list-group-flush">
+                    {% for v in sdoh.loc[sdoh["source_id"] == db].index %}
+                    <li class="list-group-item"><strong>{{v}}</strong>: {{sdoh.loc[v, "description"]}}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}

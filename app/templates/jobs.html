@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="alert alert-secondary htmx-indicator fixed-bottom" id="msg" role="alert">
+    Loading...
+</div>
+
+<div class="d-flex justify-content-between">
+    <div>
+        <p class="h4">Job: {{job_id}}</p>
+    </div>
+    <div>
+        <button class="btn btn-outline-secondary" hx-get="/jobs/{{job_id}}" hx-indicator="#msg" hx-swap="outerHTML"
+                hx-target="#job_res">
+            Refresh
+        </button>
+        <button class="btn btn-outline-secondary" hx-include="[name='sdoh']" hx-indicator="#msg" hx-put="/jobs/{{job_id}}"
+                hx-swap="outerHTML" hx-target="#job_res">Change Variables
+        </button>
+    </div>
+</div>
+<br>
+<form>
+    {% with n='1' %}
+    {% include 'components/sdoh_checkboxes.html' %}
+    {% endwith %}
+</form>
+<hr>
+<div hx-get='/jobs/{{job_id}}' hx-swap='outerHTML' hx-trigger='load delay:1000ms, every 1s' id='job_res'></div>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% if done %}
+<div hx-get='/jobs/{{job_id}}' hx-swap='outerHTML' id='job_res'>
+
+    <div class="d-flex justify-content-between">
+        <div>
+            <p class="h5">Job complete.</p>
+            {{ total }} total addresses.<br>
+            {{ succeeded }} addresses successfully geocoded (rating <25).<br>
+            {{ failed }} addresses failed (rating >25).<br>
+        </div>
+        <div>
+            {% if token %}
+            <button class="btn btn-outline-secondary"
+                    onclick="location.href='/api/jobs/{{job_id}}/download?token={{token}}';">Download
+            </button>
+            <button class="btn btn-outline-secondary"
+                    onclick="location.href='/api/jobs/{{job_id}}/failed/download?token={{token}}';">Download Failed
+                Addresses
+            </button>
+            {% else %}
+            <button class="btn btn-outline-secondary" onclick="location.href='/api/jobs/{{job_id}}/download';">
+                Download
+            </button>
+            <button class="btn btn-outline-secondary" onclick="location.href='/api/jobs/{{job_id}}/failed/download';">
+                Download Failed
+            </button>
+            {% endif %}
+            <button class="btn btn-outline-danger" data-bs-target="#confirmDelete" data-bs-toggle="modal">Delete
+            </button>
+            <br>
+        </div>
+    </div>
+    <center>
+        <div id="graph" style="width:600px;height:300px;"></div>
+    </center>
+    Runtime: {{ time | round(2) }} seconds (average: {{ (time / total) | round(2)}}s)
+    <br>
+
+    <script>
+        TESTER = document.getElementById('graph');
+        Plotly.newPlot(TESTER, [{
+            type: "histogram",
+            x: {{ratings_list}}
+        }],
+        {
+            margin: {
+                t: 0
+            }
+        }
+        )
+        ;
+    </script>
+    <br>
+    {% else %}
+    <div hx-get='/jobs/{{job_id}}' hx-swap='outerHTML' hx-trigger='load delay:1000ms, every 3s' id='job_res'>
+
+        {{ completed }} out of {{ total }} ({{ (100 * completed / total) | round(2) }}%) addresses geocoded.
+        {% if completed > 0 %}
+        <br>Estimated time to completion: {{ est_time | round(2) }} seconds {% else %}
+        {% endif %}
+        <br>
+
+        {% endif %}
+
+        <div class="progress" style="height: 20px;">
+            <div class="progress-bar" role="progressbar" style="width: {{ 100 * succeeded / total }}%;">{{ (100 *
+                succeeded / total) | round(1) }}%
+            </div>
+            <div class="progress-bar bg-danger" role="progressbar" style="width: {{ 100 * (failed) / total }}%;">{{ (100
+                * (failed) / total) | round(1) }}%
+            </div>
+        </div>
+        <br>
+
+        {% if total > 250 %}
+        Displaying first 250 rows...
+        {% endif %}
+        <div class="scroll">
+            {{ data.head(250).to_html(classes="table") | safe }}
+        </div>
+
+    </div>
+
+    <div class="modal fade" id="confirmDelete" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Are you sure?</h5>
+                    <button class="btn-close" data-bs-dismiss="modal" type="button"></button>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Go back</button>
+                    {% if token %}
+                    <button class="btn btn-primary" onclick="location.href='/web/jobs/{{job_id}}/delete?token={{token}}';"
+                            type="button">Confirm delete
+                    </button>
+                    {% else %}
+                    <button class="btn btn-primary" onclick="location.href='/web/jobs/{{job_id}}/delete';"
+                            type="button">Confirm delete
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>

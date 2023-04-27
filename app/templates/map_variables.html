@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="page_body">
+    Upload a csv file with previously geocoded entries and get mappings to geographic variables.<br><br>
+
+    <form action="javascript:void(0);" name="map_var" onkeydown="return event.key != 'Enter';" x-data="{
+                fn: '',
+                fips_col: '',
+                long_col: '',
+                lat_col: '',
+                granularity: ''
+                }">
+        <label class="form-label" for="file">Data file (csv format)</label>
+        <div class="row">
+            <div class="col-auto"><input class="form-control" id="file" name="file" required="required" type="file"
+                                         x-model="fn"></div>
+            <div class="col-3">
+                <div class="input-group">
+                    <span class="input-group-text">Delimiter</span>
+                    <input class="form-control" id="delimiter" name="delimiter" placeholder="," required="required" type="text"
+                           value=",">
+                </div>
+            </div>
+            <div class="col-2">
+                <button :disabled="!(fn.length)" class="btn btn-outline-dark" hx-encoding='multipart/form-data'
+                        hx-include="[name='file'], [name='delimiter']" hx-post="/upload_map/" hx-swap="innerHTML"
+                        hx-target='#response_map'>Upload
+                </button>
+            </div>
+        </div>
+        <br>
+        <div id="response_map">
+
+        </div>
+    </form>
+</div>
+{% endblock %}

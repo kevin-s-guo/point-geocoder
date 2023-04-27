@@ -1,0 +1,135 @@
+<hr>
+Addresses can be in a single string column or separated into street address, city, state, and zip code columns.<br><br>
+<div class="form-check form-switch">
+    <input class="form-check-input" id="address_components" name="address_components" role="switch" type="checkbox"
+           x-model="addr_comp">
+    <label class="form-check-label" for="address_components">Separate address into components</label>
+</div>
+
+<div class="input-group">
+    <span class="input-group-text">Address</span>
+    {% for col in df.columns %}
+    <input class="btn-check" id="{{ col }}_addr" name="addr_col" onclick="resetId('{{col}}')" required="required" type="radio"
+           value="{{ col }}" x-model="addr_col">
+    <label class="btn btn-outline-primary" for="{{ col }}_addr">{{ col }}</label>
+    {% endfor %}
+</div>
+<br>
+
+<div x-show="addr_comp">
+    <div class="input-group">
+        <span class="input-group-text">City</span>
+        {% for col in df.columns %}
+        <input class="btn-check" id="{{ col }}_city" name="city_col" onclick="resetId('{{col}}')" type="radio" value="{{ col }}"
+               x-model="city_col">
+        <label class="btn btn-outline-primary" for="{{ col }}_city">{{ col }}</label>
+        {% endfor %}
+        <button class="btn btn-dark" onclick="resetIdCol('city_col', 'id_col');" type="button">x</button>
+    </div>
+    <br>
+    <div class="input-group">
+        <span class="input-group-text">State</span>
+        {% for col in df.columns %}
+        <input class="btn-check" id="{{ col }}_state" name="state_col" onclick="resetId('{{col}}')" type="radio"
+               value="{{ col }}" x-model="state_col">
+        <label class="btn btn-outline-primary" for="{{ col }}_state">{{ col }}</label>
+        {% endfor %}
+        <button class="btn btn-dark" onclick="resetIdCol('state_col', 'id_col');" type="button">x</button>
+    </div>
+    <br>
+    <div class="input-group">
+        <span class="input-group-text">Zip</span>
+        {% for col in df.columns %}
+        <input class="btn-check" id="{{ col }}_zip" name="zip_col" onclick="resetId('{{col}}')" type="radio" value="{{ col }}"
+               x-model="zip_col">
+        <label class="btn btn-outline-primary" for="{{ col }}_zip">{{ col }}</label>
+        {% endfor %}
+        <button class="btn btn-dark" onclick="resetIdCol('zip_col', 'id_col');" type="button">x</button>
+    </div>
+    <br>
+</div>
+
+<div class="input-group">
+    <span class="input-group-text">Identifier</span>
+    {% for col in df.columns %}
+    <input :disabled='(addr_col === "{{ col }}") || (city_col === "{{ col }}") || (state_col === "{{ col }}") || (zip_col === "{{ col }}")' class="btn-check" id="{{ col }}_id"
+           name="id_col"
+           type="radio" value="{{ col }}" x-model="id_col">
+    <label class="btn btn-outline-secondary" for="{{ col }}_id">{{ col }}</label>
+    {% endfor %}
+    <button class="btn btn-dark" onclick="resetInput('id_col')" type="button">x</button>
+</div>
+<br>
+<div class="accordion" id="accordionExample">
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="headingOne">
+            <button aria-controls="collapseOne" aria-expanded="true" class="accordion-button collapsed"
+                    data-bs-target="#collapseOne" data-bs-toggle="collapse" type="button">
+                Preview data table (first 10 rows)
+            </button>
+        </h2>
+        <div aria-labelledby="headingOne" class="accordion-collapse collapse " data-bs-parent="#accordionExample"
+             id="collapseOne">
+            <div class="accordion-body">
+                {{ df.head(10).to_html(classes="table") | safe }}
+            </div>
+        </div>
+    </div>
+</div>
+<br>
+<label for='sdoh'>Choose social determinants of health to include</label><br>
+{% with n='2' %}
+{% include 'components/sdoh_checkboxes.html' %}
+{% endwith %}
+
+<br>
+<div class="input-group col">
+    <span class="input-group-text">Granularity</span>
+    <input checked="checked" class="btn-check" id="tract" name="granularity" type="radio" value="tract">
+    <label class="btn btn-outline-secondary" for="tract">tract</label>
+    <input class="btn-check" id="zip_code" name="granularity" type="radio" value="zip_code">
+    <label class="btn btn-outline-secondary" for="zip_code">zip code</label>
+</div>
+<br>
+
+<div class="d-flex justify-content-between">
+    <div class="input-group col">
+        <span class="input-group-text">Threads</span>
+        <input checked="checked" class="btn-check" id="1_thread" name="threads" type="radio" value="1">
+        <label class="btn btn-outline-secondary" for="1_thread">1</label>
+        <input class="btn-check" id="2_thread" name="threads" type="radio" value="2">
+        <label class="btn btn-outline-secondary" for="2_thread">2</label>
+        <input class="btn-check" id="3_thread" name="threads" type="radio" value="3">
+        <label class="btn btn-outline-secondary" for="3_thread">3</label>
+        <input class="btn-check" id="4_thread" name="threads" type="radio" value="4">
+        <label class="btn btn-outline-secondary" for="4_thread">4</label>
+        <input class="btn-check" id="5_thread" name="threads" type="radio" value="5">
+        <label class="btn btn-outline-secondary" for="5_thread">5</label>
+    </div>
+    <div class="input-group col">
+        <span class="input-group-text">Password (optional)</span>
+        <input class="form-control" id="pwd" name="pwd" placeholder="" type="password" value="">
+    </div>
+</div>
+<br>
+
+
+<script>
+
+
+    function resetId(name) {
+        document.getElementById(name + "_id").checked = false;
+    }
+
+    function resetInput(name) {
+        var ele = document.getElementsByName(name);
+        for (var i = 0; i < ele.length; i++) ele[i].checked = false;
+    }
+
+    function resetIdCol(name, enable) {
+        var ele = document.getElementsByName(name);
+        for (var i = 0; i < ele.length; i++) ele[i].checked = false;
+        var ele = document.getElementsByName(enable);
+        for (var i = 0; i < ele.length; i++) ele[i].disabled = false;
+    }
+</script>
