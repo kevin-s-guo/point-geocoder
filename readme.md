@@ -1,6 +1,6 @@
 ## Geocoder Platform
 
-[![Docker](https://badgen.net/badge/icon/docker?icon=docker&label=POINT%20Geocoder)](https://hub.docker.com/u/ksgi)
+![Version](https://badgen.net/github/release/kevin-s-guo/point-geocoder) [![Docker](https://badgen.net/badge/icon/docker?icon=docker&label)](https://hub.docker.com/u/ksgi)
 
 ### Dependencies
 Docker needs to be installed on the host. See [this](https://docs.docker.com/get-docker/) page for Docker installation instructions.
