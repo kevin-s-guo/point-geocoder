@@ -1,4 +1,5 @@
 version: "3.9"
+
 services:
   web:
     image: ksgi/geocoder-platform-web:latest
@@ -9,6 +10,7 @@ services:
     depends_on:
       - "db"
     container_name: geocoder-platform-web
+
   db:
     image: ksgi/geocoder-platform-db:latest
     volumes:
@@ -18,5 +20,20 @@ services:
       - POSTGRES_PASSWORD=census
     shm_size: 1gb
     container_name: geocoder-platform-db
+
+  worker:
+    command: celery -A worker.celery worker --loglevel=info
+    volumes:
+      - ./app:/code/app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - web
+      - redis
+
+  redis:
+    image: redis:7
+
 volumes:
   gisdata:
