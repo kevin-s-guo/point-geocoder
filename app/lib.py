@@ -9,24 +9,12 @@ import secrets
 from joblib import Parallel, delayed
 from sqlalchemy import create_engine
 
-DBHOST = "db" #db
-DBNAME = "census"
-DBUSER = "census" #census
-DBPASS = "census" # census
-DBYEAR = "2020"  # will require column called "bg_<DBYEAR> in address table"
-
-OTHER_YEAR_BG = {"2010": {"table": "bg_19", "col": "bg_2010"}}  # column for blockgroup in master_address_table
-
-SDOH_TABLE = ""#"sdoh.ahrq_2020_tract"
-SDOH_VARS = ""#pd.read_csv("data/ahrq_2020_desc.csv").set_index("variable")['description']
-
-tablename = "master_address_table"
+from db_constants import DBHOST, DBNAME, DBUSER, DBPASS, DBYEAR, OTHER_YEAR_BG, TABLENAME
 
 engine = create_engine(f'postgresql://{DBUSER}:{DBPASS}@{DBHOST}:5432/{DBNAME}')
 
 sdoh_databases = None
 sdoh_variables = None
-
 
 def resolve(address, sdoh=[]):
     conn = psycopg2.connect(f"host={DBHOST} dbname={DBNAME} user={DBUSER} password={DBPASS}")
@@ -59,11 +47,6 @@ def new_job():  # inserts row, returns job id
 
 
 def new_job_multithread(inp, job, id_col="id", sdoh_vars=[], partitions=5, pwd=""):
-    if sdoh_vars:
-        sdoh_vars_sql = ", " + f", {SDOH_TABLE}.".join(sdoh_vars)
-    else:
-        sdoh_vars_sql = ""
-
     partitions_done = [False for _ in range(partitions)]
 
     if pwd != "":
@@ -92,7 +75,7 @@ def new_job_multithread(inp, job, id_col="id", sdoh_vars=[], partitions=5, pwd="
 
     inp.columns = [c.lower() for c in inp.columns]
     inp["job"] = job
-    inp.to_sql(tablename, engine, if_exists="append")
+    inp.to_sql(TABLENAME, engine, if_exists="append")
 
     engine.dispose()
 
@@ -103,7 +86,7 @@ def resolve_batch_partition(job, partition, sdoh_vars=[]):
         with conn.cursor() as cur:
             # determine how many addresses in partition
             cur.execute(
-                f"SELECT count(*) from {tablename} where job = %s AND partition = {partition} AND rating IS NULL",
+                f"SELECT count(*) from {TABLENAME} where job = %s AND partition = {partition} AND rating IS NULL",
                 (job,))
             num_addr = cur.fetchone()[0]
 
@@ -163,10 +146,6 @@ def get_job(job, input_addr=True, long_lat=True, norm_addr=True, split_norm_addy
                 levels = sdoh_databases.loc[sdoh_tables, "granularity"]
 
                 sdoh_columns = (dx["source"] + "_" + dx["version"] + "_" + dx["level"] + "." + sdoh_vars).values
-                print(sdoh_tables, sdoh_columns)
-                sdoh_vars_sql = ", " + f", {SDOH_TABLE}.".join(sdoh_vars)
-            else:
-                sdoh_vars_sql = ""
 
             cols = ["id", "rating"]
             if input_addr:
@@ -226,16 +205,16 @@ def get_status(job):
             else:
                 return None
 
-            cur.execute(f"SELECT count(*) FROM {tablename} WHERE job = %s", (job,))
+            cur.execute(f"SELECT count(*) FROM {TABLENAME} WHERE job = %s", (job,))
             total = cur.fetchone()[0]
 
-            cur.execute(f"SELECT count(*) FROM {tablename} WHERE job = %s AND rating >= 0 AND rating < 25", (job,))
+            cur.execute(f"SELECT count(*) FROM {TABLENAME} WHERE job = %s AND rating >= 0 AND rating < 25", (job,))
             success = cur.fetchone()[0]
 
-            cur.execute(f"SELECT count(*) FROM {tablename} WHERE job = %s AND (rating = -1 OR rating >= 25)", (job,))
+            cur.execute(f"SELECT count(*) FROM {TABLENAME} WHERE job = %s AND (rating = -1 OR rating >= 25)", (job,))
             fail = cur.fetchone()[0]
 
-            cur.execute(f"SELECT count(*) FROM {tablename} WHERE job = %s AND rating IS NOT NULL", (job,))
+            cur.execute(f"SELECT count(*) FROM {TABLENAME} WHERE job = %s AND rating IS NOT NULL", (job,))
             complete = cur.fetchone()[0]
 
     return done, starttime, endtime, total, success, fail, complete
@@ -327,14 +306,9 @@ def query_sdoh(fips=[], fips_type="tract", sdoh_vars=[]):
     cols = ['fips'] + sdoh_vars
     fips_table = "(VALUES ('" + "'), ('".join(map(str, fips)) + "')) AS x(fips)"  # literal for postgres table
 
-    dx = sdoh_variables.loc[sdoh_vars]
     sdoh_tables = sdoh_variables.loc[sdoh_vars, "source_id"].unique()
 
-    census_years = sdoh_databases.loc[sdoh_tables, "census_year"]
     levels = sdoh_databases.loc[sdoh_tables, "granularity"]
-
-    sdoh_columns = (dx["source"] + "_" + dx["version"] + "_" + dx["level"] + "." + sdoh_vars).values
-    sdoh_vars_sql = ", " + f", {SDOH_TABLE}.".join(sdoh_vars)
 
     sql_str = "SELECT " + ", ".join(cols) + f" FROM {fips_table}"
     for t in sdoh_tables:
@@ -415,7 +389,7 @@ def save_tmp(df):
 def delete_job(job_id):
     with psycopg2.connect(f"host={DBHOST} dbname={DBNAME} user={DBUSER} password={DBPASS}") as conn:
         with conn.cursor() as cur:
-            cur.execute(f"DELETE FROM {tablename} WHERE job = %s", (job_id,))
+            cur.execute(f"DELETE FROM {TABLENAME} WHERE job = %s", (job_id,))
             cur.execute(f"DELETE FROM jobs WHERE id = %s", (job_id,))
 
 
@@ -492,11 +466,11 @@ def setup():
 
             cur.execute(f"""CREATE OR REPLACE FUNCTION geocode_multi(jobid integer, n integer, p integer) RETURNS void AS $$
                            BEGIN
-                               UPDATE {tablename}
+                               UPDATE {TABLENAME}
                                SET (rating, new_address, tract, geom, long, lat, norm_addr, new_stno, new_st, new_st_type, new_city, new_state, new_zip) = (COALESCE(g.rating,-1), pprint_addy(g.addy), (get_tract(g.geomout, 'tract_id')), (g.geomout), ST_X(g.geomout)::numeric(8,5), ST_Y(g.geomout)::numeric(8,5), g.addy, (addy).address, (addy).streetname, (addy).streettypeabbrev, (addy).location, (addy).stateabbrev, (addy).zip)
-                               FROM (SELECT address, job, id FROM {tablename} WHERE job = jobid AND rating IS NULL AND partition = p ORDER BY id LIMIT n) AS a
+                               FROM (SELECT address, job, id FROM {TABLENAME} WHERE job = jobid AND rating IS NULL AND partition = p ORDER BY id LIMIT n) AS a
                                LEFT JOIN LATERAL geocode(a.address,1) As g ON true
-                               WHERE a.id = {tablename}.id AND a.job = {tablename}.job;
+                               WHERE a.id = {TABLENAME}.id AND a.job = {TABLENAME}.job;
                            RETURN;
                            END; $$ LANGUAGE plpgsql;""")
 
