@@ -73,10 +73,10 @@
         <br>
 
         {% if total > 250 %}
-        Displaying first 250 rows...
+        Displaying first 250 rows ...
         {% endif %}
         <div class="scroll">
-            {{ data.head(250).to_html(classes="table") | safe }}
+            {{ data.loc[data['rating'] != -1].head(250).to_html(classes="table") | safe }}
         </div>
 
     </div>
