@@ -3,7 +3,7 @@ import json
 import os
 import pandas as pd
 from enum import Enum
-from fastapi import APIRouter, Form, Query, UploadFile, BackgroundTasks
+from fastapi import APIRouter, Form, Query, UploadFile, BackgroundTasks, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -45,7 +45,7 @@ def _geocode_single_address(address_string: str):
 
 
 @router.post("/jobs/")  # should this be split into two?
-def _submit_job(data_csv: UploadFile, bg: BackgroundTasks,
+def _submit_job(request: Request, data_csv: UploadFile, bg: BackgroundTasks,
                 geographic_vars: GeographicVariables | None = Form(default=None),
                 address_col: str = "address", city_col: str = "", state_col: str = "", zip_col: str = "",
                 id_col: str = "", delimiter: str = ",", password: str = Form(default=""),
@@ -109,13 +109,15 @@ def _submit_job(data_csv: UploadFile, bg: BackgroundTasks,
                 return {"error": "invalid geographic variables"}
 
     lib.new_job_multithread(inp=inp, job=job, id_col=id_col, sdoh_vars=sdoh_vars, pwd=password, partitions=n_threads)
-    bg.add_task(lib.submit_partitions, job, n_threads, sdoh_vars)
+
+    tasks = lib.submit_partitions(job, n_threads, sdoh_vars)
+    request.app.state.tasks[str(job)] = list(map(lambda s: s.id, tasks))
 
     return {"job_id": job}
 
 
 @router.get("/jobs/{job_id}")
-def _get_job(job_id: int,
+def _get_job(request: Request, job_id: int,
              data_table: bool = Query(default=False, title="Data Table",
                                       description="Return raw data table in json form."),
              table_format: TableFormat = TableFormat.index,  # index or split
@@ -129,6 +131,10 @@ def _get_job(job_id: int,
     if df is not None:
         done, start, end, total, success, fail, complete = lib.get_status(job_id)
 
+        if len(request.app.state.tasks.get(str(job_id), [])) == 0:
+            done = True # usually means server restarted / job failed
+            lib.suspend_job(job_id, [])
+
         json = {"info": {"id": job_id, "done": done, "start_time": start}}
 
         completed = sum(~(df["rating"].isnull()))
@@ -138,8 +144,9 @@ def _get_job(job_id: int,
         json['info']['succeeded'] = success
 
         if done:
-            json["info"]["end_time"] = end
-            json["info"]["run_time"] = (end - start).total_seconds()
+            if end is not None:
+                json["info"]["end_time"] = end
+                json["info"]["run_time"] = (end - start).total_seconds()
             if data_table:
                 json["data"] = df.fillna("").to_dict(orient=table_format.value)
         if token:
@@ -219,6 +226,26 @@ def _download_failed(bg: BackgroundTasks, job_id: int, token: str = Query(defaul
     lib.generate_failed(job_id, input_addr=True, long_lat=True, norm_addr=True, split_norm_addy=True)
     bg.add_task(os.unlink, path)
     return FileResponse(path=f"temp/{job_id}_failed.csv", filename=str(job_id) + "_failed.csv", media_type='text/csv')
+
+@router.post("/jobs/{job_id}/resume")
+def _resume(request: Request, job_id: int, token: str = Query(default="", title="Token", description="Authentication token. Leave blank if no password set. POST to /api/tokens to issue a token (expires in one day).")):
+    if not lib.auth_token(job_id, token):
+        return {"auth": "failed"}
+
+    n_threads = lib.resume_job(job_id, request.app.state.tasks.get(str(job_id), []))
+    tasks = lib.submit_partitions(job_id, n_threads)
+    request.app.state.tasks[str(job_id)] = list(map(lambda s: s.id, tasks))
+
+    return {"response": "success"}
+
+@router.post("/jobs/{job_id}/suspend")
+def _suspend(request: Request, job_id: int, token: str = Query(default="", title="Token", description="Authentication token. Leave blank if no password set. POST to /api/tokens to issue a token (expires in one day).")):
+    if not lib.auth_token(job_id, token):
+        return {"auth": "failed"}
+
+    lib.suspend_job(job_id, request.app.state.tasks.get(str(job_id), []))
+    request.app.state.tasks[str(job_id)] = []
+    return {"response": "success"}
 
 
 @router.post("/map")

@@ -2,6 +2,7 @@ version: "3.9"
 
 services:
   web:
+    build: app/
     image: ksgi/geocoder-platform-web:latest
     volumes:
       - ./app:/code/app
@@ -9,7 +10,7 @@ services:
       - "7001:8000"
     depends_on:
       - "db"
-    container_name: geocoder-platform-web
+    container_name: point-web
 
   db:
     image: ksgi/geocoder-platform-db:latest
@@ -19,10 +20,11 @@ services:
       - POSTGRES_USER=census
       - POSTGRES_PASSWORD=census
     shm_size: 1gb
-    container_name: geocoder-platform-db
+    container_name: point-db
 
   worker:
-    command: celery -A worker.celery worker --loglevel=info
+    image: ksgi/geocoder-platform-web:latest
+    entrypoint: celery -A worker.celery worker --loglevel=info -c 10
     volumes:
       - ./app:/code/app
     environment:
@@ -31,9 +33,11 @@ services:
     depends_on:
       - web
       - redis
+    container_name: point-worker
 
   redis:
     image: redis:7
+    container_name: point-redis
 
 volumes:
   gisdata:

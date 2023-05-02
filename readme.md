@@ -20,7 +20,7 @@ First, create and start the database container with docker compose.
 
 Next, run the setup shell script. 
 
-``$ docker exec geocoder-platform-db sh load_default.sh``
+``$ docker exec point-db sh load_default.sh``
 
 `load_default.sh` will install PostGIS (the spatial database extension), download 2020 census data, import 2010 block-group boundaries, and create the necessary tables for the web app. Depending on download speed, this may take hours. The full US Census data will take up approximately 100 gigabytes of storage.
 
@@ -32,7 +32,7 @@ If everything worked according to plan, navigating to `localhost:7001/docs` in a
 
 ### Loading Built-in SDOH Databases 
 
-``$ docker exec geocoder-platform-web python3 sdoh_util.py``
+``$ docker exec point-web python3 sdoh_util.py``
 
 Restart the web server container so that the newly loaded databases are shown.
 
@@ -52,7 +52,7 @@ Using `docker compose down` will delete the containers, but if the `-v` flag is 
 
 First, make sure that the POINT application is stopped (using `docker compose stop`). In order to preserve the data stored in the database service, use the following two commands to remove only the web container and associated image.
 
-``$ docker rm geocoder-platform-web``
+``$ docker rm point-web``
 ``$ docker image rm geocoder-platform-web``
 
 Then, restart the whole application with `docker compose`.
@@ -60,3 +60,11 @@ Then, restart the whole application with `docker compose`.
 ``$ docker compose up``
 
 The version tagged `latest` will automatically downloaded and be swapped in from Docker Hub.
+
+## Frequently Asked Questions
+
+#### How many threads can run a single instance of POINT run at once?
+
+By default, the worker process is set up to allow 10 threads at once. In order to adjust the maximum concurrency, edit the following line in `docker-compose.yml`.
+
+``entrypoint: celery -A worker.celery worker --loglevel=info -c <desired concurrency, default is 10>``

@@ -48,6 +48,11 @@ def _get_job_html(request: Request, jid: str):
     df = lib.get_job(jid)
     if df is not None:
         done, start, end, total, success, fail, complete = lib.get_status(jid)
+
+        if len(request.app.state.tasks.get(jid, [])) == 0:
+            done = True # usually means server restarted / job failed
+            lib.suspend_job(jid, []) # update sql
+
         context = {"request": request, "job_id": jid, "done": done, "data": df.head(250)}
 
         completed = sum(~(df["rating"].isnull()))
@@ -57,8 +62,11 @@ def _get_job_html(request: Request, jid: str):
         context['succeeded'] = success
         context['total'] = total
 
+        # print(AsyncResult('geocode-' + jid + '-0').status)
+
         if done:
-            context['time'] = (end - start).total_seconds()
+            if end is not None:
+                context['time'] = (end - start).total_seconds()
 
             context['ratings_list'] = str(list(df['rating'].values))
 
@@ -198,13 +206,15 @@ async def _submit(request: Request, batchfile: UploadFile, bg: BackgroundTasks):
     df.index = df.index.rename("id")
 
     if split_components:
+        df = df.sort_values(by=zip_col)
         df["address"] = (df[addr_col] + ", " + df[city_col] + ", " + df[state_col] + ", " + df[zip_col].astype(str))
         inp = df[["address"]]
     else:
         inp = df[[addr_col]].rename(columns={addr_col: "address"})
 
     lib.new_job_multithread(inp=inp, job=job, id_col=id_col, sdoh_vars=sdoh_vars, pwd=pwd, partitions=n_threads)
-    bg.add_task(lib.submit_partitions, job, n_threads, sdoh_vars)
+    tasks = lib.submit_partitions(job, n_threads, sdoh_vars)
+    request.app.state.tasks[str(job)] = list(map(lambda s: s.id, tasks))
 
     return templates.TemplateResponse("components/confirm_submit.html", context={"request": request, "job": job})
 

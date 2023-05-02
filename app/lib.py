@@ -6,10 +6,12 @@ import pandas as pd
 import psycopg2
 import re
 import secrets
-from joblib import Parallel, delayed
 from sqlalchemy import create_engine
 
+import worker
+
 from db_constants import DBHOST, DBNAME, DBUSER, DBPASS, DBYEAR, OTHER_YEAR_BG, TABLENAME
+
 
 engine = create_engine(f'postgresql://{DBUSER}:{DBPASS}@{DBHOST}:5432/{DBNAME}')
 
@@ -79,53 +81,25 @@ def new_job_multithread(inp, job, id_col="id", sdoh_vars=[], partitions=5, pwd="
 
     engine.dispose()
 
-
-def resolve_batch_partition(job, partition, sdoh_vars=[]):
-    batch_size = 5
-    with psycopg2.connect(f"host={DBHOST} dbname={DBNAME} user={DBUSER} password={DBPASS}") as conn:
-        with conn.cursor() as cur:
-            # determine how many addresses in partition
-            cur.execute(
-                f"SELECT count(*) from {TABLENAME} where job = %s AND partition = {partition} AND rating IS NULL",
-                (job,))
-            num_addr = cur.fetchone()[0]
-
-            print('job', job, 'partition', partition, 'samples', num_addr)
-
-            # insert job entry
-            if num_addr > 0:
-                for i in range(-(num_addr // -batch_size)):
-                    cur.execute(f"SELECT geocode_multi(%s, {batch_size}, {partition});", (job,))
-                    conn.commit()
-
-            cur.execute(f"SELECT partitions FROM jobs WHERE id = %s", (job,))
-            done_array = cur.fetchone()[0]
-
-            print('job', job, "partition", partition, "done")
-            done_array[partition] = True
-
-            if all(done_array):
-                print('job', job, 'done')
-                fips_year(job, DBYEAR)
-                fips_year(job, "2010")
-
-                stop = datetime.datetime.now()
-                cur.execute(f"UPDATE jobs SET (endtime, done) = (%s, %s) WHERE id = %s", (stop, True, job))
-            else:
-                cur.execute(f"UPDATE jobs SET partitions = %s WHERE id = %s", (done_array, job))
-
-
 def submit_partitions(job, partitions=5, sdoh_vars=[]):
-    def t(i):
-        resolve_batch_partition(job, i, sdoh_vars)
-
-    Parallel(n_jobs=-1, backend="threading")(map(delayed(t), [i for i in range(partitions)]))
+    # def t(i):
+    #     resolve_batch_partition(job, i, sdoh_vars)
+    #
+    # Parallel(n_jobs=-1, backend="threading")(map(delayed(t), [i for i in range(partitions)]))
+    tasks = []
+    for i in range(partitions):
+        tasks.append(worker.resolve_batch_partition.apply_async([job, i, sdoh_vars],
+                                                   link_error=worker.error_handler.s(),
+                                                   # task_id='geocode-' + str(job) + '-' + str(i),
+                                                          task_track_started=True))
+    return tasks
 
 
 def get_job(job, input_addr=True, long_lat=True, norm_addr=True, split_norm_addy=False, limit=-1):
     tablename = "master_address_table"
 
     done = False
+
     with psycopg2.connect(f"host={DBHOST} dbname={DBNAME} user={DBUSER} password={DBPASS}") as conn:
         with conn.cursor() as cur:
 
@@ -196,12 +170,13 @@ def get_job(job, input_addr=True, long_lat=True, norm_addr=True, split_norm_addy
 
 def get_status(job):
     done = False
+    i = worker.celery.control.inspect()
     with psycopg2.connect(f"host={DBHOST} dbname={DBNAME} user={DBUSER} password={DBPASS}") as conn:
         with conn.cursor() as cur:
-            cur.execute(f"SELECT starttime, endtime, done FROM jobs WHERE id = %s", (job,))
+            cur.execute(f"SELECT starttime, endtime, done, partitions FROM jobs WHERE id = %s", (job,))
             res = cur.fetchone()
             if res:
-                starttime, endtime, done = res
+                starttime, endtime, done, partitions = res
             else:
                 return None
 
@@ -217,8 +192,44 @@ def get_status(job):
             cur.execute(f"SELECT count(*) FROM {TABLENAME} WHERE job = %s AND rating IS NOT NULL", (job,))
             complete = cur.fetchone()[0]
 
+            if complete == total and not done:
+                print('completed job', job, "but not marked complete")
+                cur.execute(f"UPDATE jobs SET done = TRUE WHERE id = %s", (job,))
+                done = True
+
     return done, starttime, endtime, total, success, fail, complete
 
+
+def terminate_job(job, task_ids):
+    if task_ids:
+        print("terminating", task_ids)
+        worker.celery.control.terminate(task_ids)
+
+
+def suspend_job(job, task_ids):
+    terminate_job(job, task_ids)
+    worker.fips_year.apply_async([job, DBYEAR], link_error=worker.error_handler.s(),
+                                                       task_id='fips-' + str(job))
+    worker.fips_year.apply_async([job, DBYEAR], link_error=worker.error_handler.s(),
+                                         task_id='fips2010-' + str(job))
+
+    with psycopg2.connect(f"host={DBHOST} dbname={DBNAME} user={DBUSER} password={DBPASS}") as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE jobs SET done = TRUE WHERE id = %s", (job,))
+
+
+def resume_job(job, task_ids):
+    terminate_job(job, task_ids)
+    with psycopg2.connect(f"host={DBHOST} dbname={DBNAME} user={DBUSER} password={DBPASS}") as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT partitions FROM jobs WHERE id = %s", (job,))
+            res = cur.fetchone()
+            if res:
+                partitions = res[0]
+                n_threads = len(partitions)
+
+                cur.execute(f"UPDATE jobs SET done = FALSE WHERE id = %s", (job,))
+                return n_threads
 
 def auth(job, pwd=""):
     with psycopg2.connect(f"host={DBHOST} dbname={DBNAME} user={DBUSER} password={DBPASS}") as conn:
@@ -334,52 +345,6 @@ def query_sdoh(fips=[], fips_type="tract", sdoh_vars=[]):
             df = pd.DataFrame(res, columns=cols)
             return df
 
-
-def fips_year(job, year="2010", skip=False):  # return block group fips
-    # it's faster to do this in a big batch with a lateral join than it is to do concurrently while the job is running
-
-    if year not in OTHER_YEAR_BG and year != DBYEAR:
-        return None
-
-    # extract job/id/long/lat from main db
-    with psycopg2.connect(f"host={DBHOST} dbname={DBNAME} user={DBUSER} password={DBPASS}") as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT job, id, long, lat FROM master_address_table WHERE job = %s AND tract_" + str(
-                year) + " IS NULL AND long IS NOT NULL", (job,))
-
-            res = cur.fetchall()
-            if res:
-                df = pd.DataFrame(res, columns=["job", "id", "long", "lat"])
-            else:  # already has 2010 tracts/bgs
-                skip = True
-
-            if not skip:
-                if year == DBYEAR:
-                    sql = """SELECT a.id, tractce, bg_id FROM bg
-                             LEFT JOIN LATERAL (SELECT id, long, lat FROM master_address_table WHERE job = %s) AS a ON true
-                             WHERE ST_Contains(the_geom, ST_SetSRID(ST_Point(a.long, a.lat), 4269))"""
-                else:
-                    sql = f"""SELECT a.id, tractce, bg_id FROM {OTHER_YEAR_BG[year]["table"]}
-                       LEFT JOIN LATERAL (SELECT id, long, lat FROM master_address_table WHERE job = %s) AS a ON true
-                       WHERE ST_Contains(geom, ST_SetSRID(ST_Point(a.long, a.lat), 4269))"""
-                cur.execute(sql, (job,))
-
-                res = cur.fetchall()
-                df = pd.DataFrame(res, columns=["id", "tract", "block_group"]).set_index("id")
-
-                for id, row in df.iterrows():  # TODO: use a join for efficiency (or at least execute batch)
-                    cur.execute("UPDATE master_address_table SET tract_" + str(year) + " = %s, bg_" + str(
-                        year) + " = %s WHERE job = %s AND id = %s", (row['tract'], row['block_group'], job, id))
-
-            cur.execute("SELECT id, bg_" + str(
-                year) + ", new_address, long, lat FROM master_address_table WHERE job = %s AND long IS NOT NULL",
-                        (job,))
-            res = cur.fetchall()
-            df = pd.DataFrame(res, columns=["id", "bg_fips_" + str(year), "new_address", "long", "lat"])
-
-            return df.set_index('id')
-
-
 def save_tmp(df):
     token = secrets.token_urlsafe(16)
     df.to_csv("temp/" + token + ".csv")
@@ -387,6 +352,7 @@ def save_tmp(df):
 
 
 def delete_job(job_id):
+    # terminate_job(job_id)
     with psycopg2.connect(f"host={DBHOST} dbname={DBNAME} user={DBUSER} password={DBPASS}") as conn:
         with conn.cursor() as cur:
             cur.execute(f"DELETE FROM {TABLENAME} WHERE job = %s", (job_id,))
@@ -460,7 +426,6 @@ def sweep_jobs():
 def setup():
     with psycopg2.connect(f"host={DBHOST} dbname={DBNAME} user={DBUSER} password={DBPASS}") as conn:
         with conn.cursor() as cur:
-            reload_sdoh()
             cur.execute("""CREATE OR REPLACE FUNCTION get_bg(geom geometry, out bg_id varchar) RETURNS varchar AS $$
                            SELECT bg_id FROM bg WHERE ST_Contains(bg.the_geom, geom); $$ LANGUAGE sql;""")
 
@@ -474,5 +439,4 @@ def setup():
                            RETURN;
                            END; $$ LANGUAGE plpgsql;""")
 
-
-setup()
+reload_sdoh()
