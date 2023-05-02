@@ -216,7 +216,7 @@ def _download_failed(bg: BackgroundTasks, job_id: int, token: str = Query(defaul
     if not lib.auth_token(job_id, token):
         return {"auth": "failed"}
 
-    lib.generate_failed(job_id, input_addr=True, long_lat=True, norm_addr=True, split_norm_addy=True)
+    path = lib.generate_failed(job_id, input_addr=True, long_lat=True, norm_addr=True, split_norm_addy=True)
     bg.add_task(os.unlink, path)
     return FileResponse(path=f"temp/{job_id}_failed.csv", filename=str(job_id) + "_failed.csv", media_type='text/csv')
 

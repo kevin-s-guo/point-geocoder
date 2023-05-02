@@ -294,6 +294,10 @@ def generate_out(job, input_addr=True, long_lat=True, norm_addr=True, split_norm
 def generate_failed(job, input_addr=True, long_lat=True, norm_addr=True, split_norm_addy=True):
     df = get_job(job, input_addr=input_addr, long_lat=long_lat, norm_addr=norm_addr, split_norm_addy=split_norm_addy)
     done, _, _, _, _, _, _ = get_status(job)
+
+    if not os.path.exists('temp'):
+        os.mkdir('temp')
+
     if done:
         path = f"temp/{job}_failed.csv"
         df.loc[(df['rating'] == -1) | (df['rating'] >= 25)].to_csv(path)
